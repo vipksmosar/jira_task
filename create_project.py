@@ -31,8 +31,8 @@ class jira_creator:
         self.password = password
         self.file = file
         self.jira = None
-        self.effect = 'Значение1'
-        self.target = 'Значение2'
+        self.effect = 'Выполнение'
+        self.target = 'Учет'
         self.author = author
 
     def __duedate_confirm(self, str_date):
@@ -111,10 +111,10 @@ class jira_creator:
             except:
                 logging.warning('cannot change author in {}'.format(key))
 
-    def __project_mark_cell_to (self, key, project_id, mark_id):  #маркировка проектом и вехой
-        issue = self.jira.issue(key)
-        issue.update(fields={'customfield_22700':[str(project_id)]})
-        issue.update(fields={'customfield_22701':[str(mark_id)]})
+    #def __project_mark_cell_to (self, key, project_id, mark_id):  #маркировка проектом и вехой
+    #    issue = self.jira.issue(key)
+    #    issue.update(fields={'customfield_22700':[str(project_id)]})
+    #    issue.update(fields={'customfield_22701':[str(mark_id)]})
 
     def __create_project_issue (self, dict_project_issue):   #создание проекта
         project_issue = self.jira.create_issue(fields=dict_project_issue)
@@ -174,13 +174,14 @@ class jira_creator:
             self.__assign_update(project_key,assignee_issue, manager_ia, manager_project)
         for i in list_unique[1:]:
             DF_marks = DF[DF.hierarchy == i]
+            DF_marks["customfield_22700"] = DF_marks.summary.apply(lambda x: [project_id])
             dict_marks = DF_marks.iloc[:1,:].drop(['customfield_11627', 'customfield_11651', 'hierarchy', 'duedate'], axis=1).to_dict('r')[0]
             assignee_issue = dict_marks.pop('assignee')
             mark_key, mark_id, mark_not_exist = self.__search_double_issue(dict_marks, assignee_issue)
             if mark_not_exist:
                 self.__assign_update(mark_key ,assignee_issue, manager_ia, manager_project)
                 self.jira.create_issue_link(type="Иерархия задач", inwardIssue=project_key, outwardIssue=mark_key)
-                self.__project_mark_cell_to(mark_key, project_id, mark_id)
+                #self.__project_mark_cell_to(mark_key, project_id, mark_id)
                 logging.info('{} is create link to {}'.format(mark_key, project_key))
             DF_tasks = DF_marks.iloc[1:,:].drop(['customfield_11627', 'customfield_11651', 'hierarchy'], axis=1)
             DF_tasks["customfield_22701"] = DF_tasks.summary.apply(lambda x: [mark_id])
