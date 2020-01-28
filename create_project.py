@@ -31,8 +31,8 @@ class jira_creator:
         self.password = password
         self.file = file
         self.jira = None
-        self.effect = 'Выполнение согласованных в рамках отчета мероприятий'
-        self.target = 'Учет и контроль выполнения мероприятий по итогам аудита'
+        self.effect = 'Значение1'
+        self.target = 'Значение2'
         self.author = author
 
     def __duedate_confirm(self, str_date):
