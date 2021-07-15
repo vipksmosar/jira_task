@@ -1,0 +1,32 @@
+$folder = "F:\"
+$file_to_out = 'F:\recs_video\test.html'
+
+
+
+$header = @"
+<style>
+TABLE {border-width: 1px;border-style: solid;border-color: black;border-collapse: collapse;}
+TH {border-width: 1px;padding: 3px;border-style: solid;border-color: black;background-color: #B4DFFF;}
+TD {border-width: 1px;padding: 3px;border-style: solid;border-color: black;}
+</style>
+"@
+
+$folders = gci $folder
+
+$out = foreach($r in $folders)
+{
+$s = get-acl $r.fullname
+
+    foreach($access in $s.Access)
+    {
+    $access | add-member -membertype noteproperty -name Path -value $r.fullname -passthru |
+    select Path, IdentityReference, filesystemrights
+    #Write-Host($asess)
+    }
+ }
+ #$out | Out-GridView
+
+
+$body = $out| ConvertTo-HTML -Head $header |out-string
+
+$body | Out-File $file_to_out
