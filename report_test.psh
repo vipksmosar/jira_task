@@ -8,6 +8,9 @@ $header = @"
 TABLE {border-width: 1px;border-style: solid;border-color: black;border-collapse: collapse;}
 TH {border-width: 1px;padding: 3px;border-style: solid;border-color: black;background-color: #B4DFFF;}
 TD {border-width: 1px;padding: 3px;border-style: solid;border-color: black;}
+.alert {
+ color: red; 
+ }
 </style>
 "@
 
@@ -15,18 +18,104 @@ $folders = gci $folder
 
 $out = foreach($r in $folders)
 {
-$s = get-acl $r.fullname
+$ars = get-acl $r.fullname
 
-    foreach($access in $s.Access)
+    foreach($access in $ars.Access)
     {
     $access | add-member -membertype noteproperty -name Path -value $r.fullname -passthru |
     select Path, IdentityReference, filesystemrights
-    #Write-Host($asess)
     }
  }
- #$out | Out-GridView
+
+Function Set-CellColor
+{  
+    [CmdletBinding()]
+    Param (
+        [Parameter(Mandatory,Position=0)]
+        [string]$Property,
+        [Parameter(Mandatory,Position=1)]
+        [string]$Color,
+        [Parameter(Mandatory,ValueFromPipeline)]
+        [Object[]]$InputObject,
+        [Parameter(Mandatory)]
+        [string]$Filter,
+        [switch]$Row
+    )
+    
+    Begin {
+        Write-Verbose "$(Get-Date): Function Set-CellColor begins"
+        If ($Filter)
+        {   If ($Filter.ToUpper().IndexOf($Property.ToUpper()) -ge 0)
+            {   $Filter = $Filter.ToUpper().Replace($Property.ToUpper(),"`$Value")
+                Try {
+                    [scriptblock]$Filter = [scriptblock]::Create($Filter)
+                }
+                Catch {
+                    Write-Warning "$(Get-Date): ""$Filter"" caused an error, stopping script!"
+                    Write-Warning $Error[0]
+                    Exit
+                }
+            }
+            Else
+            {   Write-Warning "Could not locate $Property in the Filter, which is required.  Filter: $Filter"
+                Exit
+            }
+        }
+    }
+    
+    Process {
+        ForEach ($Line in $InputObject)
+        {   If ($Line.IndexOf("<tr><th") -ge 0)
+            {   Write-Verbose "$(Get-Date): Processing headers..."
+                $Search = $Line | Select-String -Pattern '<th ?[a-z\-:;"=]*>(.*?)<\/th>' -AllMatches
+                $Index = 0
+                ForEach ($Match in $Search.Matches)
+                {   If ($Match.Groups[1].Value -eq $Property)
+                    {   Break
+                    }
+                    $Index ++
+                }
+                If ($Index -eq $Search.Matches.Count)
+                {   Write-Warning "$(Get-Date): Unable to locate property: $Property in table header"
+                    Exit
+                }
+                Write-Verbose "$(Get-Date): $Property column found at index: $Index"
+            }
+            If ($Line -match "<tr( style=""background-color:.+?"")?><td")
+            {   $Search = $Line | Select-String -Pattern '<td ?[a-z\-:;"=]*>(.*?)<\/td>' -AllMatches
+                $Value = $Search.Matches[$Index].Groups[1].Value -as [double]
+                If (-not $Value)
+                {   $Value = $Search.Matches[$Index].Groups[1].Value
+                }
+                If (Invoke-Command $Filter)
+                {   If ($Row)
+                    {   Write-Verbose "$(Get-Date): Criteria met!  Changing row to $Color..."
+                        If ($Line -match "<tr style=""background-color:(.+?)"">")
+                        {   $Line = $Line -replace "<tr style=""background-color:$($Matches[1])","<tr style=""background-color:$Color"
+                        }
+                        Else
+                        {   $Line = $Line.Replace("<tr>","<tr style=""background-color:$Color"">")
+                        }
+                    }
+                    Else
+                    {   Write-Verbose "$(Get-Date): Criteria met!  Changing cell to $Color..."
+                        $Line = $Line.Replace($Search.Matches[$Index].Value,"<td style=""background-color:$Color"">$Value</td>")
+                    }
+                }
+            }
+            Write-Output $Line
+        }
+    }
+    
+    End {
+        Write-Verbose "$(Get-Date): Function Set-CellColor completed"
+    }
+}
 
 
-$body = $out| ConvertTo-HTML -Head $header |out-string
 
-$body | Out-File $file_to_out
+$out | Out-GridView
+$out | convertto-html | set-cellcolor -Row FileSystemRights red -filter "FileSystemRights -like 'FullControl'" |  set-cellcolor -Row IdentityReference green -filter "IdentityReference -like '*Пользователи' -or IdentityReference -like '*Users'"| out-file $file_to_out
+
+
+
